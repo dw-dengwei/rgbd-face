@@ -1,11 +1,14 @@
+import torchsnooper
 from torch.nn.functional import softmax, cosine_similarity, normalize, linear
+from transformers import get_polynomial_decay_schedule_with_warmup
+from torchmetrics.classification import Accuracy
 from torchvision.models import resnet18
 from torch.nn import CrossEntropyLoss
 from torch.nn import Module
 from torch import optim
 from torch import nn
+
 import pytorch_lightning as pl
-import torchsnooper
 import torch
 import math
 
@@ -14,6 +17,12 @@ class PtlRgbdFr(pl.LightningModule):
     def __init__(
         self,
         num_classes,
+        total_steps,
+        gallery,
+        warmup_ratio=0.05,
+        backbone="resnet18",
+        rgb_weight=0.5,
+        arcface_margin=0.5,
         alpha=1,
         beta=2,
         gamma=3,
@@ -23,15 +32,20 @@ class PtlRgbdFr(pl.LightningModule):
         weight_decay=0.0005,
         lr=0.1,
         out_features=1024
-    ) -> None:
+    ):
         super(PtlRgbdFr, self).__init__()
         self.lambda_1 = lambda_1
         self.lambda_2 = lambda_2
         self.momentum = momentum
         self.weight_decay = weight_decay
         self.lr = lr
+        self.rgb_weight = rgb_weight
+        self.warmup_steps = int(total_steps * warmup_ratio)
+        self.total_steps = total_steps
+        self.backbone = backbone
+        self.gallery = gallery
 
-        self.rgbd_fr = RgbdFr(out_features=out_features)
+        self.rgbd_fr = RgbdFr(out_features, backbone)
 
         self.ce_rgb = CrossEntropyLoss()
         self.sa_rgb = SemanticAlignmentLoss(beta=beta)
@@ -41,47 +55,220 @@ class PtlRgbdFr(pl.LightningModule):
         self.sa_depth = SemanticAlignmentLoss(beta=beta)
         self.cmfl_depth = CrossModalFocalLoss(alpha=alpha, gamma=gamma)
 
-        self.arcface = ArcFace(in_features=out_features, out_features=num_classes)
+        self.arcface = ArcFace(
+            in_features=out_features,
+            out_features=num_classes,
+            m=arcface_margin
+        )
+
+        self.acc_rgb = Accuracy()
+        self.acc_depth = Accuracy()
+
+        self.acc_valid = Accuracy()
+
+    def forward(self, rgb, depth):
+        return self.rgbd_fr(rgb, depth)
 
     def training_step(self, batch, batch_idx):
         rgb, depth, label = batch
-        feat_rgb, feat_depth = self.rgbd_fr(rgb, depth)
+        feat_rgb, feat_depth = self(rgb, depth)
         logits_rgb = self.arcface(feat_rgb, label)
         logits_depth = self.arcface(feat_depth, label)
 
         l_cls_rgb = self.ce_rgb(logits_rgb, label)
         l_cls_depth = self.ce_depth(logits_depth, label)
 
-        pred_prob_rgb = softmax(logits_rgb, dim=1).max(dim=1).values
-        pred_prob_depth = softmax(logits_depth, dim=1).max(dim=1).values
+        pred_true_prob_rgb = torch.take_along_dim(
+            softmax(logits_rgb, dim=1),
+            label.unsqueeze(1),
+            dim=1
+        )
+        pred_true_prob_depth = torch.take_along_dim(
+            softmax(logits_depth, dim=1),
+            label.unsqueeze(1),
+            dim=1
+        )
+
+        pred_cls_rgb = logits_rgb.argmax(dim=1)
+        pred_cls_depth = logits_depth.argmax(dim=1)
+        self.acc_rgb(pred_cls_rgb, label)
+        self.acc_depth(pred_cls_depth, label)
 
         l_sa_rgb = self.sa_rgb(feat_rgb, feat_depth, l_cls_rgb, l_cls_depth)
         l_sa_depth = self.sa_depth(feat_depth, feat_rgb, l_cls_depth, l_cls_rgb)
 
-        l_cmfl_rgb = self.cmfl_rgb(pred_prob_rgb, pred_prob_depth)
-        l_cmfl_depth = self.cmfl_depth(pred_prob_depth, pred_prob_rgb)
+        l_cmfl_rgb = self.cmfl_rgb(pred_true_prob_rgb, pred_true_prob_depth)
+        l_cmfl_depth = self.cmfl_depth(pred_true_prob_depth, pred_true_prob_rgb)
 
         l_rgb = (1 - self.lambda_1) * l_cls_rgb + \
-            self.lambda_1 * l_cmfl_rgb + \
-            self.lambda_2 * l_sa_rgb
+                self.lambda_1 * l_cmfl_rgb + \
+                self.lambda_2 * l_sa_rgb
 
         l_depth = (1 - self.lambda_2) * l_cls_depth + \
-            self.lambda_1 * l_cmfl_depth + \
-            self.lambda_2 * l_sa_depth
+                  self.lambda_1 * l_cmfl_depth + \
+                  self.lambda_2 * l_sa_depth
 
-        return (l_rgb + l_depth).mean()
+        l_total = (self.rgb_weight * l_rgb + (1 - self.rgb_weight) * l_depth).mean()
+
+        log_kwargs = {
+            "on_step": False,
+            "on_epoch": True,
+            "prog_bar": True,
+            "logger": True,
+            "sync_dist": True
+        }
+        self.log(
+            "train/feature_sim",
+            cosine_similarity(feat_rgb, feat_depth).mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/ce_rgb",
+            l_cls_rgb.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/ce_depth",
+            l_cls_depth.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/cmfl_rgb",
+            l_cmfl_rgb.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/cmfl_depth",
+            l_cls_depth.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/pred_true_prob_rgb",
+            pred_true_prob_rgb.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/pred_true_prob_depth",
+            pred_true_prob_depth.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/total_loss",
+            l_total,
+            **log_kwargs
+        )
+        self.log(
+            "train/rgb_loss",
+            l_rgb.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/depth_loss",
+            l_depth.mean(),
+            **log_kwargs
+        )
+        self.log(
+            "train/rgb_acc",
+            self.acc_rgb,
+            **log_kwargs
+        )
+        self.log(
+            "train/depth_acc",
+            self.acc_depth,
+            **log_kwargs
+        )
+
+        return l_total
 
     def configure_optimizers(self):
-        opt = optim.SGD(params=self.parameters(), lr=self.lr, momentum=self.momentum, weight_decay=self.weight_decay)
+        opt = optim.AdamW(
+            params=self.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay
+        )
 
-        return opt
+        lr_scheduler = get_polynomial_decay_schedule_with_warmup(
+            opt,
+            self.warmup_steps,
+            self.total_steps,
+            lr_end=1e-7,
+            power=4
+        )
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval" : "step",
+                "frequency": 1
+            }
+        }
+
+    def validation_step(self, batch, batch_idx):
+        if batch_idx == 0:
+            self.gallery_feat_rgb, \
+            self.gallery_feat_depth, \
+            self.gallery_label = self.extract_gallery_features()
+
+        rgb, depth, label = batch
+        probe_feat_rgb, probe_feat_depth = self(rgb, depth)
+        probe_feat_rgb /= probe_feat_rgb.norm(dim=1, keepdim=True)
+        probe_feat_depth /= probe_feat_depth.norm(dim=1, keepdim=True)
+
+        sim_rgb = torch.matmul(
+            probe_feat_rgb,
+            self.gallery_feat_rgb.T
+        )
+        sim_depth = torch.matmul(
+            probe_feat_depth,
+            self.gallery_feat_depth.T
+        )
+        sim_fuse = (sim_rgb + sim_depth) / 2
+
+        pred_idx = torch.argmax(sim_fuse, dim=1)
+        pred_cls = self.gallery_label[pred_idx]
+        self.acc_valid(pred_cls, label)
+        self.log(
+            "valid/acc",
+            self.acc_valid,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            sync_dist=True
+        )
+
+    def extract_gallery_features(self):
+        rgb_list = []
+        depth_list = []
+        label_list = []
+        for data in self.gallery:
+            rgb, depth, label = data
+
+            rgb_list.append(rgb)
+            depth_list.append(depth)
+            label_list.append(label)
+
+        rgb = torch.stack(rgb_list, dim=0).to(self.device)
+        depth = torch.stack(depth_list, dim=0).to(self.device)
+        label = torch.stack(label_list, dim=0).to(self.device)
+
+        gallery_feat_rgb, gallery_feat_depth = self(rgb, depth)
+        gallery_feat_rgb /= gallery_feat_rgb.norm(dim=1, keepdim=True)
+        gallery_feat_depth /= gallery_feat_depth.norm(dim=1, keepdim=True)
+
+        return gallery_feat_rgb, gallery_feat_depth, label
+
 
 
 class RgbdFr(Module):
-    def __init__(self, out_features):
+    def __init__(self, out_features, backbone):
         super(RgbdFr, self).__init__()
-        self.resnet_rgb = get_branch(out_features=out_features)
-        self.resnet_depth = get_branch(out_features=out_features)
+        self.rgb_net = get_branch(
+            out_features, backbone
+        )
+        self.depth_net = get_branch(
+            out_features, backbone
+        )
 
     def forward(self, rgb, depth):
         """
@@ -94,8 +281,8 @@ class RgbdFr(Module):
             feat_rgb: rgb feature vector
             feat_depth: depth feature vector
         """
-        feat_rgb = self.resnet_rgb(rgb)
-        feat_depth = self.resnet_depth(depth)
+        feat_rgb = self.rgb_net(rgb)
+        feat_depth = self.depth_net(depth)
         return feat_rgb, feat_depth
 
 
@@ -112,18 +299,21 @@ def get_pred_cls(logits: torch.Tensor):
     return pred
 
 
-def get_branch(out_features):
+def get_branch(out_features, backbone="resnet18"):
     """
     use resnet as backbone
     Args:
         out_features: output feature size
 
     Returns:
-        res: resnet model, the last layer is replaced
+        net: backbone model, the last layer is replaced
     """
-    res = resnet18()
-    res.fc = nn.Linear(res.fc.in_features, out_features)
-    return res
+    if backbone == "resnet18":
+        net = resnet18()
+    else: # default resnet18
+        net = resnet18()
+    net.fc = nn.Linear(net.fc.in_features, out_features)
+    return net
 
 
 class SemanticAlignmentLoss(Module):
@@ -145,7 +335,9 @@ class SemanticAlignmentLoss(Module):
         Returns:
             semantic alignment loss
         """
-        rho = torch.exp(self.beta * (l_cls_m - l_cls_n)) - 1 if l_cls_m > l_cls_n else 0
+        rho = torch.exp(
+            self.beta * (l_cls_m - l_cls_n)
+            ) - 1 if l_cls_m > l_cls_n else 0
         cos = cosine_similarity(feat_m, feat_n)
 
         return rho * (1 - cos)
@@ -176,7 +368,9 @@ class CrossModalFocalLoss(Module):
 
 
 class ArcFace(Module):
-    def __init__(self, in_features, out_features, s=30.0, m=0.50, easy_margin=False):
+    def __init__(
+        self, in_features, out_features, s=30.0, m=0.50, easy_margin=False
+    ):
         """
         Args:
             in_features: size of each input sample
@@ -221,7 +415,8 @@ class ArcFace(Module):
         one_hot.scatter_(1, label.view(-1, 1).long(), 1)
         # -------------torch.where(out_i = {x_i if condition_i else y_i) -------------
         output = (one_hot * phi) + (
-                (1.0 - one_hot) * cosine)  # you can use torch.where if your torch.__version__ is 0.4
+                (
+                            1.0 - one_hot) * cosine)  # you can use torch.where if your torch.__version__ is 0.4
         output *= self.s
 
         return output

@@ -1,7 +1,6 @@
 from torchvision import transforms as trans
 from torch.utils.data import Dataset
-from os.path import join
-from glob import glob
+
 import torch
 import cv2
 
@@ -9,16 +8,14 @@ import cv2
 class Vgg(Dataset):
     def __init__(
         self,
-        data_root,
-        rgb_dir,
-        dzyx_dir,
+        rgb_path,
+        dzyx_path,
         transform,
-        num_id,
         using_modal=("rgb", "depth")
     ):
         super(Vgg, self).__init__()
-        self.rgb_path, self.dzyx_path = get_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id)
-
+        self.rgb_path = rgb_path
+        self.dzyx_path = dzyx_path
         self.transform = transform
         self.using_modal = using_modal
 
@@ -47,22 +44,6 @@ class Vgg(Dataset):
             out.append(normal)
 
         return *out, label
-
-
-def get_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
-    ids = [i for i in range(1, 1 + num_id)]
-    dzyx_pattern = '*_dzyx.png'
-    dzyx_list = []
-    for idx in ids:
-        dzyx_list.extend(
-            glob(join(data_root, dzyx_dir, str(idx), dzyx_pattern))
-        )
-
-    rgb_list = list(
-        map(lambda p: p.replace(dzyx_dir, rgb_dir).replace('_dzyx.png', '.png'), dzyx_list)
-    )
-
-    return rgb_list, dzyx_list
 
 
 if __name__ == '__main__':
