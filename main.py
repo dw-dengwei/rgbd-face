@@ -5,11 +5,13 @@ from util.train import get_total_train_steps
 from util.data import get_dataset, Loader
 from config.private import PrivateConfig
 from model.rgbd_fr import PtlRgbdFr
+from util.env import seed_all
 
 import pytorch_lightning as pl
 import wandb
 
 if __name__ == '__main__':
+    seed_all(config.random_seed)
     conf_dict = {}
     for k, v in config.__dict__.items():
         if "__" not in k:

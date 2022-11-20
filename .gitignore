@@ -224,6 +224,7 @@ lightning_logs/
 rgbd/
 std*
 wandb/
+nohup/
 
 # private
 config/private.py
