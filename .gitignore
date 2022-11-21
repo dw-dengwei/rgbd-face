@@ -222,6 +222,7 @@ cython_debug/
 # logs
 lightning_logs/
 rgbd/
+log/
 std*
 wandb/
 nohup/
