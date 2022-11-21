@@ -1,6 +1,6 @@
 class BaseConfig:
     """env"""
-    gpu = [1]
+    gpu = [1, 2]
     precision = 16
     num_workers = 10
     pin_memory = True
