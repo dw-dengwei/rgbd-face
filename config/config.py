@@ -1,10 +1,11 @@
 class BaseConfig:
     """env"""
-    gpu = [1, 2]
+    gpu = [1]
     precision = 16
     num_workers = 10
     pin_memory = True
     persistent_workers = True
+    random_seed = 42
 
     """train"""
     epoch = 30
@@ -17,6 +18,9 @@ class BaseConfig:
     backbone = "resnet18"
     rgb_weight = 0.5
     arcface_margin = 0.3
+    out_features = 1024
+    reduction = 16
+    lr_reduce_epoch = [6, 10, 17]
 
     """data"""
     train_data_root = "/home/dw/vgg"

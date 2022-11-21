@@ -1,14 +1,16 @@
-import torchsnooper
 from torch.nn.functional import softmax, cosine_similarity, normalize, linear
 from transformers import get_polynomial_decay_schedule_with_warmup
+from torchvision.models import resnet18, resnet34, resnet50
 from torchmetrics.classification import Accuracy
-from torchvision.models import resnet18
+from torch.optim.lr_scheduler import MultiStepLR
 from torch.nn import CrossEntropyLoss
+from model.senet import SENet
 from torch.nn import Module
 from torch import optim
 from torch import nn
 
 import pytorch_lightning as pl
+import torchsnooper
 import torch
 import math
 
@@ -19,6 +21,10 @@ class PtlRgbdFr(pl.LightningModule):
         num_classes,
         total_steps,
         gallery,
+        lr_reduce_epoch=[6, 10, 17],
+        rgb_in_channels=3,
+        depth_in_channels=3,
+        reduction=16,
         warmup_ratio=0.05,
         backbone="resnet18",
         rgb_weight=0.5,
@@ -44,8 +50,20 @@ class PtlRgbdFr(pl.LightningModule):
         self.total_steps = total_steps
         self.backbone = backbone
         self.gallery = gallery
+        self.lr_reduce_epoch = lr_reduce_epoch
 
-        self.rgbd_fr = RgbdFr(out_features, backbone)
+        if "resnet" in backbone:
+            self.rgbd_fr = RgbdFr(
+                backbone,
+                out_features=out_features
+            )
+        else:
+            self.rgbd_fr = RgbdFr(
+                backbone,
+                rgb_in_channels=rgb_in_channels,
+                depth_in_channels=depth_in_channels,
+                reduction=reduction
+            )
 
         self.ce_rgb = CrossEntropyLoss()
         self.sa_rgb = SemanticAlignmentLoss(beta=beta)
@@ -113,7 +131,7 @@ class PtlRgbdFr(pl.LightningModule):
         log_kwargs = {
             "on_step": False,
             "on_epoch": True,
-            "prog_bar": True,
+            "prog_bar": False,
             "logger": True,
             "sync_dist": True
         }
@@ -187,6 +205,13 @@ class PtlRgbdFr(pl.LightningModule):
             weight_decay=self.weight_decay
         )
 
+        # opt = optim.SGD(
+        #     params=self.parameters(),
+        #     lr=self.lr,
+        #     weight_decay=self.weight_decay,
+        #     momentum=0.9
+        # )
+
         lr_scheduler = get_polynomial_decay_schedule_with_warmup(
             opt,
             self.warmup_steps,
@@ -194,6 +219,12 @@ class PtlRgbdFr(pl.LightningModule):
             lr_end=1e-7,
             power=4
         )
+        # lr_scheduler = MultiStepLR(
+        #     opt,
+        #     self.lr_reduce_epoch,
+        #     0.1
+        # )
+
         return {
             "optimizer": opt,
             "lr_scheduler": {
@@ -261,14 +292,28 @@ class PtlRgbdFr(pl.LightningModule):
 
 
 class RgbdFr(Module):
-    def __init__(self, out_features, backbone):
+    def __init__(self, backbone, *args, **kwargs):
         super(RgbdFr, self).__init__()
-        self.rgb_net = get_branch(
-            out_features, backbone
-        )
-        self.depth_net = get_branch(
-            out_features, backbone
-        )
+        if "resnet" in backbone:
+            self.rgb_net = backbone_factory(
+                backbone,
+                out_features=kwargs["out_features"]
+            )
+            self.depth_net = backbone_factory(
+                backbone,
+                out_features=kwargs["out_features"]
+            )
+        else:
+            self.rgb_net = backbone_factory(
+                backbone,
+                in_channels=kwargs["rgb_in_channels"],
+                reduction=kwargs["reduction"]
+            )
+            self.depth_net = backbone_factory(
+                backbone,
+                in_channels=kwargs["depth_in_channels"],
+                reduction=kwargs["reduction"]
+            )
 
     def forward(self, rgb, depth):
         """
@@ -299,7 +344,7 @@ def get_pred_cls(logits: torch.Tensor):
     return pred
 
 
-def get_branch(out_features, backbone="resnet18"):
+def backbone_factory(backbone="resnet18", *args, **kwargs):
     """
     use resnet as backbone
     Args:
@@ -310,9 +355,18 @@ def get_branch(out_features, backbone="resnet18"):
     """
     if backbone == "resnet18":
         net = resnet18()
+    elif backbone == "resnet34":
+        net = resnet34()
+    elif backbone == "resnet50":
+        net = resnet50()
+    elif backbone == "senet":
+        net = SENet(*args, **kwargs)
     else: # default resnet18
         net = resnet18()
-    net.fc = nn.Linear(net.fc.in_features, out_features)
+
+    if "resnet" in backbone:
+        net.fc = nn.Linear(net.fc.in_features, kwargs["out_features"])
+
     return net
 
 

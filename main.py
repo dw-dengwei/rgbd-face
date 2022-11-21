@@ -9,8 +9,11 @@ from util.env import seed_all
 
 import pytorch_lightning as pl
 import wandb
+import os
+
 
 if __name__ == '__main__':
+    print(f'pid={os.getpid()}')
     seed_all(config.random_seed)
     conf_dict = {}
     for k, v in config.__dict__.items():
@@ -34,7 +37,9 @@ if __name__ == '__main__':
     model = PtlRgbdFr(
         num_classes=config.num_classes, lr=config.learning_rate,
         total_steps=total_steps, rgb_weight=config.rgb_weight,
-        gallery=valid_gallery_dataset, arcface_margin=config.arcface_margin
+        gallery=valid_gallery_dataset, arcface_margin=config.arcface_margin,
+        backbone=config.backbone, reduction=config.reduction,
+        out_features=config.out_features, lr_reduce_epoch=config.lr_reduce_epoch
     )
 
     wandb.login(key=PrivateConfig.wandb_key)
