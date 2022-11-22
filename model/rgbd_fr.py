@@ -331,19 +331,6 @@ class RgbdFr(Module):
         return feat_rgb, feat_depth
 
 
-def get_pred_cls(logits: torch.Tensor):
-    """
-    get predicted class
-    Args:
-        logits: network output logits
-
-    Returns:
-        pred: predicted class
-    """
-    pred = logits.argmax(dim=1)
-    return pred
-
-
 def backbone_factory(backbone="resnet18", *args, **kwargs):
     """
     use resnet as backbone
