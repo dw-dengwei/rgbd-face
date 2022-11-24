@@ -6,6 +6,8 @@ from dataset.vgg import Vgg
 from os.path import join
 from glob import glob
 
+import pandas as pd
+
 
 class Loader(LightningDataModule):
     def __init__(self, dataset):
@@ -132,8 +134,77 @@ def texas_split(data_root, rgb_dir, dzyx_dir, num_id):
     return gallery, probe
 
 
+def lock3dface_split(
+    info_path: str,
+    data_root: str,
+    rgb_dir: str,
+    depth_dir: str
+):
+    """
+    :param info_path: pandas dataframe
+        dir_name, ID, subset, test
+        002_Kinect_NU_1,1,NU,gallery
+        ...
+    :param data_root:
+    :param rgb_dir:
+    :param depth_dir:
+        data_root/
+            - rgb_dir
+            - depth_dir
+    :return:
+    """
+    info = pd.read_csv(info_path, index_col="dir_name")
+    rgb_fp_lst = list(
+        glob(
+            join(data_root, rgb_dir, "**", '*.jpg'), recursive=True
+        )
+    )
+    gallery = []
+    probe = []
+    """
+    [
+        [rgb_fp, depth_fp, ID, subset],
+        [rgb_fp, depth_fp, ID, subset]
+        ...
+    ]
+    """
+
+    for rgb_fp in rgb_fp_lst:
+        depth_fp = rgb_fp.replace(
+            rgb_dir,
+            depth_dir
+        ).replace(
+            "RGB",
+            "DEPTH"
+        ).replace(
+            ".jpg",
+            "_depth_normal.png"
+        )
+
+        dir_name = rgb_fp.split("/")[-2].replace("RGB", "")
+        sample_id = int(rgb_fp.split("/")[-1].split(".")[0])
+
+        info_item = info.loc[dir_name]
+        ID = info_item["ID"]
+        subset = info_item["subset"]
+        test = info_item["test"]
+        if sample_id == 1 and test == "gallery":
+            gallery.append([
+                rgb_fp, depth_fp, ID, subset
+            ])
+        else:
+            probe.append([
+                rgb_fp, depth_fp, ID, subset
+            ])
+
+    return gallery, probe
+
+
 if __name__ == "__main__":
-    gallery, probe = texas_split("/home/dw/rgbd/Texas", "aligned",
-                                 "depth_normal", 118)
-    g_rgb, g_dzyx = get_texas_rgb_dzyx_path(gallery)
-    p_rgb, p_dzyx = get_texas_rgb_dzyx_path(probe)
+    gallery, probe = lock3dface_split(
+        config.test_datainfo,
+        config.test_data_root,
+        config.test_rgb_dir,
+        config.test_dzyx_dir
+    )
+    print(probe)
