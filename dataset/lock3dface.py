@@ -31,7 +31,7 @@ class Lock3DFace(Dataset):
             normal = trans.ToTensor()(normal)
             out.append(normal)
 
-        return *out, ID
+        return *out, subset, ID
 
     def __len__(self):
         return len(self.file_lst)
