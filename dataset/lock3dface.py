@@ -10,6 +10,7 @@ class Lock3DFace(Dataset):
         super().__init__()
         self.file_lst = file_lst
         self.using_modal = using_modal
+        self.transform = transform
 
     def __getitem__(self, index):
         rgb_fp, dzyx_fp, ID, subset = self.file_lst[index]
