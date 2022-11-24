@@ -226,6 +226,7 @@ log/
 std*
 wandb/
 nohup/
+nohup.out
 
 # private
 config/private.py
