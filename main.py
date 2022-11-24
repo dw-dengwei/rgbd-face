@@ -22,9 +22,14 @@ if __name__ == '__main__':
 
     train_dataset, \
     valid_gallery_dataset, \
-    valid_probe_dataset = get_dataset()
-    dataloader = Loader(
-        {"train": train_dataset, "probe": valid_probe_dataset},
+    valid_probe_dataset, \
+    test_gallery_dataset, \
+    test_probe_dataset = get_dataset()
+    dataloader = Loader({
+            "train": train_dataset,
+            "valid_probe": valid_probe_dataset,
+            "test_probe": test_probe_dataset
+        },
     )
 
     total_steps = get_total_train_steps(

@@ -35,6 +35,16 @@ class Loader(LightningDataModule):
             shuffle=False
         )
 
+    def test_dataloader(self):
+        return DataLoader(
+            self.dataset['test_probe'],
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            pin_memory=config.pin_memory,
+            persistent_workers=config.persistent_workers,
+            shuffle=False
+        )
+
 
 def get_dataset():
     train_dataset = Vgg(
