@@ -1,5 +1,6 @@
 from pytorch_lightning import LightningDataModule
 from config.config import BaseConfig as config
+from dataset.lock3dface import Lock3DFace
 from torch.utils.data import DataLoader
 from dataset.texas import Texas
 from dataset.vgg import Vgg
@@ -26,7 +27,7 @@ class Loader(LightningDataModule):
 
     def val_dataloader(self):
         return DataLoader(
-            self.dataset['probe'],
+            self.dataset['valid_probe'],
             batch_size=config.batch_size,
             num_workers=config.num_workers,
             pin_memory=config.pin_memory,
@@ -47,26 +48,45 @@ def get_dataset():
         config.train_using_modal
     )
 
-    gallery, probe = texas_split(
+    valid_gallery, valid_probe = texas_split(
         config.valid_data_root,
         config.valid_rgb_dir,
         config.valid_dzyx_dir,
         config.valid_ids
     )
     valid_gallery_dataset = Texas(
-        *get_texas_rgb_dzyx_path(gallery),
+        *get_texas_rgb_dzyx_path(valid_gallery),
         None,
         config.valid_using_modal
     )
     valid_probe_dataset = Texas(
-        *get_texas_rgb_dzyx_path(probe),
+        *get_texas_rgb_dzyx_path(valid_probe),
         None,
         config.valid_using_modal
     )
 
+    test_gallery, test_probe = lock3dface_split(
+        config.test_datainfo,
+        config.test_data_root,
+        config.test_rgb_dir,
+        config.test_dzyx_dir
+    )
+    test_gallery_dataset = Lock3DFace(
+        test_gallery,
+        None,
+        config.test_using_modal
+    )
+    test_probe_dataset = Lock3DFace(
+        test_probe,
+        None,
+        config.test_using_modal
+    )
+
     return train_dataset, \
            valid_gallery_dataset, \
-           valid_probe_dataset
+           valid_probe_dataset, \
+           test_gallery_dataset, \
+           test_probe_dataset
 
 
 def get_vgg_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
