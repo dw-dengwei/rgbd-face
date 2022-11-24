@@ -122,7 +122,7 @@ class PtlRgbdFr(pl.LightningModule):
                 self.lambda_1 * l_cmfl_rgb + \
                 self.lambda_2 * l_sa_rgb
 
-        l_depth = (1 - self.lambda_2) * l_cls_depth + \
+        l_depth = (1 - self.lambda_1) * l_cls_depth + \
                   self.lambda_1 * l_cmfl_depth + \
                   self.lambda_2 * l_sa_depth
 
@@ -157,7 +157,7 @@ class PtlRgbdFr(pl.LightningModule):
         )
         self.log(
             "train/cmfl_depth",
-            l_cls_depth.mean(),
+            l_cmfl_depth.mean(),
             **log_kwargs
         )
         self.log(
