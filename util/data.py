@@ -78,7 +78,7 @@ def get_vgg_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
 
     rgb_list = list(
         map(
-            lambda p: p.replace(dzyx_dir, rgb_dir).replace("_dzyx.png", ".png"),
+            lambda p: p.replace(dzyx_dir, rgb_dir).replace("_dzyx.png", ".jpg"),
             dzyx_list
         )
     )
