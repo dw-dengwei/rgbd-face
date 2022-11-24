@@ -39,7 +39,10 @@ if __name__ == '__main__':
         total_steps=total_steps, rgb_weight=config.rgb_weight,
         gallery=valid_gallery_dataset, arcface_margin=config.arcface_margin,
         backbone=config.backbone, reduction=config.reduction,
-        out_features=config.out_features, lr_reduce_epoch=config.lr_reduce_epoch
+        out_features=config.out_features,
+        lr_reduce_epoch=config.lr_reduce_epoch,
+        alpha=config.alpha, beta=config.beta, gamma=config.gamma,
+        lambda_1=config.lambda_1, lambda_2=config.lambda_2
     )
 
     wandb.login(key=PrivateConfig.wandb_key)
