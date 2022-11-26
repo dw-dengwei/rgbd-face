@@ -4,7 +4,7 @@ from config.config import BaseConfig as config
 from util.train import get_total_train_steps
 from util.data import get_dataset, Loader
 from config.private import PrivateConfig
-from model.baseline import PtlBaseline
+from model.single import PtlRgbdFr
 from util.env import seed_all
 
 import pytorch_lightning as pl
@@ -23,9 +23,10 @@ if __name__ == '__main__':
     train_dataset, \
     valid_gallery_dataset, \
     valid_probe_dataset = get_dataset()
-    dataloader = Loader(
-        {"train": train_dataset, "probe": valid_probe_dataset},
-    )
+    dataloader = Loader({
+        "train": train_dataset,
+        "valid_probe": valid_probe_dataset,
+    })
 
     total_steps = get_total_train_steps(
         train_dataset,
@@ -34,21 +35,16 @@ if __name__ == '__main__':
         config.epoch
     )
 
-    model = PtlBaseline(
-        num_classes=config.num_classes, lr=config.learning_rate,
-        total_steps=total_steps, gallery=valid_gallery_dataset,
-        arcface_margin=config.arcface_margin, backbone=config.backbone,
-        out_features=config.out_features, lr_reduce_epoch=config.lr_reduce_epoch
-    )
+    model = PtlRgbdFr(total_steps=total_steps, gallery=valid_gallery_dataset)
 
     wandb.login(key=PrivateConfig.wandb_key)
     logger = WandbLogger(
         project=PrivateConfig.wandb_project_name,
-        name=PrivateConfig.wandb_run_name,
+        name=config.single_modal,
         entity=PrivateConfig.entity,
         config=conf_dict
     )
-    logger.watch(model.rgbd_fr, log="all", log_freq=1)
+    logger.watch(model.baseline, log="all", log_freq=1)
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
 

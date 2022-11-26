@@ -57,46 +57,44 @@ def get_dataset():
         None,
         config.train_using_modal
     )
-
-    valid_gallery, valid_probe = texas_split(
-        config.valid_data_root,
-        config.valid_rgb_dir,
-        config.valid_dzyx_dir,
-        config.valid_ids
-    )
-    valid_gallery_dataset = Texas(
-        *get_texas_rgb_dzyx_path(valid_gallery),
-        None,
-        config.valid_using_modal
-    )
-    valid_probe_dataset = Texas(
-        *get_texas_rgb_dzyx_path(valid_probe),
-        None,
-        config.valid_using_modal
-    )
-
-    test_gallery, test_probe = lock3dface_split(
-        config.test_datainfo,
-        config.test_data_root,
-        config.test_rgb_dir,
-        config.test_dzyx_dir
-    )
-    test_gallery_dataset = Lock3DFace(
-        test_gallery,
-        None,
-        config.test_using_modal
-    )
-    test_probe_dataset = Lock3DFace(
-        test_probe,
-        None,
-        config.test_using_modal
-    )
+    if config.using_test == 'lock3dface':
+        valid_gallery, valid_probe = lock3dface_split(
+            config.lock3dface_datainfo,
+            config.lock3dface_data_root,
+            config.lock3dface_rgb_dir,
+            config.lock3dface_dzyx_dir
+        )
+        valid_gallery_dataset = Lock3DFace(
+            valid_gallery,
+            None,
+            config.lock3dface_using_modal
+        )
+        valid_probe_dataset = Lock3DFace(
+            valid_probe,
+            None,
+            config.lock3dface_using_modal
+        )
+    else:
+        valid_gallery, valid_probe = texas_split(
+            config.texas_data_root,
+            config.texas_rgb_dir,
+            config.texas_dzyx_dir,
+            config.texas_ids
+        )
+        valid_gallery_dataset = Texas(
+            *get_texas_rgb_dzyx_path(valid_gallery),
+            None,
+            config.texas_using_modal
+        )
+        valid_probe_dataset = Texas(
+            *get_texas_rgb_dzyx_path(valid_probe),
+            None,
+            config.texas_using_modal
+        )
 
     return train_dataset, \
            valid_gallery_dataset, \
-           valid_probe_dataset, \
-           test_gallery_dataset, \
-           test_probe_dataset
+           valid_probe_dataset
 
 
 def get_vgg_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
@@ -232,9 +230,9 @@ def lock3dface_split(
 
 if __name__ == "__main__":
     gallery, probe = lock3dface_split(
-        config.test_datainfo,
-        config.test_data_root,
-        config.test_rgb_dir,
-        config.test_dzyx_dir
+        config.lock3dface_datainfo,
+        config.lock3dface_data_root,
+        config.lock3dface_rgb_dir,
+        config.lock3dface_dzyx_dir
     )
     print(probe)

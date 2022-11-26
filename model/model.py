@@ -112,14 +112,14 @@ class SemanticAlignmentLoss(Module):
             ) - 1 if l_cls_m > l_cls_n else 0
         cos = cosine_similarity(feat_m, feat_n)
 
-        return rho * (1 - cos)
+        return rho * (0.5 - cos) ** 2
 
 
 def backbone_factory(backbone="resnet18", *args, **kwargs):
     """
     use resnet as backbone
     Args:
-        out_features: output feature size
+        backbone: backbone network
 
     Returns:
         net: backbone model, the last layer is replaced

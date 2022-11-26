@@ -22,14 +22,11 @@ if __name__ == '__main__':
 
     train_dataset, \
     valid_gallery_dataset, \
-    valid_probe_dataset, \
-    test_gallery_dataset, \
-    test_probe_dataset = get_dataset()
+    valid_probe_dataset = get_dataset()
     dataloader = Loader({
             "train": train_dataset,
             "valid_probe": valid_probe_dataset,
-            "test_probe": test_probe_dataset
-        },
+        }
     )
 
     total_steps = get_total_train_steps(
@@ -39,16 +36,7 @@ if __name__ == '__main__':
         config.epoch
     )
 
-    model = PtlRgbdFr(
-        num_classes=config.num_classes, lr=config.learning_rate,
-        total_steps=total_steps, rgb_weight=config.rgb_weight,
-        gallery=valid_gallery_dataset, arcface_margin=config.arcface_margin,
-        backbone=config.backbone, reduction=config.reduction,
-        out_features=config.out_features,
-        lr_reduce_epoch=config.lr_reduce_epoch,
-        alpha=config.alpha, beta=config.beta, gamma=config.gamma,
-        lambda_1=config.lambda_1, lambda_2=config.lambda_2
-    )
+    model = PtlRgbdFr(total_steps=total_steps, gallery=valid_gallery_dataset)
 
     wandb.login(key=PrivateConfig.wandb_key)
     logger = WandbLogger(

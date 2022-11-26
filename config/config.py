@@ -1,6 +1,6 @@
 class BaseConfig:
     """env"""
-    gpu = [1, 2]
+    gpu = [1, 3]
     precision = 16
     num_workers = 10
     pin_memory = True
@@ -35,10 +35,11 @@ class BaseConfig:
     """training data"""
     train_data_root = "/home/dw/vgg"
     train_rgb_dir = "aligned"
-    train_dzyx_dir = "depth_normal"
+    train_dzyx_dir = "3ddfav2_depth_normal"
     train_ids = 468
     train_using_modal = ("rgb", "normal")
     using_test = 'lock3dface'
+    single_modal = 'rgb'
 
     """Texas data"""
     texas_data_root = "/home/dw/rgbd/Texas"
