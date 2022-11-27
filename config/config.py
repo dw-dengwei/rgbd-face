@@ -35,7 +35,7 @@ class BaseConfig:
     """training data"""
     train_data_root = "/home/dw/vgg"
     train_rgb_dir = "aligned"
-    train_dzyx_dir = "depth_normal"
+    train_dzyx_dir = "3ddfav2_depth_normal"
     train_ids = 468
     train_using_modal = ("rgb", "normal")
     using_test = 'lock3dface'
