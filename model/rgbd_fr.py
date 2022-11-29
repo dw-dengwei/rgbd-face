@@ -154,7 +154,7 @@ class PtlRgbdFr(pl.LightningModule):
             "train/l_sa_rgb": l_sa_rgb.mean(),
             "train/l_sa_depth": l_sa_depth.mean(),
         }
-        self.log(log_content, **log_kwargs)
+        self.log_dict(log_content, **log_kwargs)
 
         return l_total
 
@@ -257,7 +257,7 @@ class PtlRgbdFr(pl.LightningModule):
               "valid/acc_oc": self.acc_lock3dface_oc,
               "valid/acc_tm": self.acc_lock3dface_tm,
             }
-            self.log(log_content, **log_kwargs)
+            self.log_dict(log_content, **log_kwargs)
         else:
             self.acc_texas(pred, gt)
             self.log("valid/acc", self.acc_texas, **log_kwargs)
