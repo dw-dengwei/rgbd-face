@@ -138,76 +138,23 @@ class PtlRgbdFr(pl.LightningModule):
             "logger": True,
             "sync_dist": True
         }
-        self.log(
-            "train/feature_sim",
-            cosine_similarity(feat_rgb, feat_depth).mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/ce_rgb",
-            l_cls_rgb.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/ce_depth",
-            l_cls_depth.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/cmfl_rgb",
-            l_cmfl_rgb.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/cmfl_depth",
-            l_cmfl_depth.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/pred_true_prob_rgb",
-            pred_true_prob_rgb.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/pred_true_prob_depth",
-            pred_true_prob_depth.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/total_loss",
-            l_total,
-            **log_kwargs
-        )
-        self.log(
-            "train/rgb_loss",
-            l_rgb.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/depth_loss",
-            l_depth.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/rgb_acc",
-            self.acc_rgb,
-            **log_kwargs
-        )
-        self.log(
-            "train/depth_acc",
-            self.acc_depth,
-            **log_kwargs
-        )
-        self.log(
-            "train/l_sa_rgb",
-            l_sa_rgb.mean(),
-            **log_kwargs
-        )
-        self.log(
-            "train/l_sa_depth",
-            l_sa_depth.mean(),
-            **log_kwargs
-        )
+        log_content = {
+            "train/feature_sim": cosine_similarity(feat_rgb, feat_depth).mean(),
+            "train/ce_rgb": l_cls_rgb.mean(),
+            "train/ce_depth": l_cls_depth.mean(),
+            "train/cmfl_rgb": l_cmfl_rgb.mean(),
+            "train/cmfl_depth": l_cmfl_depth.mean(),
+            "train/pred_true_prob_rgb": pred_true_prob_rgb.mean(),
+            "train/pred_true_prob_depth": pred_true_prob_depth.mean(),
+            "train/total_loss": l_total,
+            "train/rgb_loss": l_rgb.mean(),
+            "train/depth_loss": l_depth.mean(),
+            "train/rgb_acc": self.acc_rgb,
+            "train/depth_acc": self.acc_depth,
+            "train/l_sa_rgb": l_sa_rgb.mean(),
+            "train/l_sa_depth": l_sa_depth.mean(),
+        }
+        self.log(log_content, **log_kwargs)
 
         return l_total
 
@@ -301,12 +248,16 @@ class PtlRgbdFr(pl.LightningModule):
                     self.acc_lock3dface_oc(pred[i: i + 1], gt[i: i + 1])
                 elif subset[i] == 'TM':
                     self.acc_lock3dface_tm(pred[i: i + 1], gt[i: i + 1])
-            self.log("valid/acc_avg", self.acc_lock3dface_avg, **log_kwargs)
-            self.log("valid/acc_nu", self.acc_lock3dface_nu, **log_kwargs)
-            self.log("valid/acc_fe", self.acc_lock3dface_fe, **log_kwargs)
-            self.log("valid/acc_ps", self.acc_lock3dface_ps, **log_kwargs)
-            self.log("valid/acc_oc", self.acc_lock3dface_oc, **log_kwargs)
-            self.log("valid/acc_tm", self.acc_lock3dface_tm, **log_kwargs)
+
+            log_content = {
+              "valid/acc_avg": self.acc_lock3dface_avg,
+              "valid/acc_nu": self.acc_lock3dface_nu,
+              "valid/acc_fe": self.acc_lock3dface_fe,
+              "valid/acc_ps": self.acc_lock3dface_ps,
+              "valid/acc_oc": self.acc_lock3dface_oc,
+              "valid/acc_tm": self.acc_lock3dface_tm,
+            }
+            self.log(log_content, **log_kwargs)
         else:
             self.acc_texas(pred, gt)
             self.log("valid/acc", self.acc_texas, **log_kwargs)
