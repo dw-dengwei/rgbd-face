@@ -140,14 +140,35 @@ def backbone_factory(backbone="resnet18", *args, **kwargs):
     return net
 
 
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super(SpatialAttention, self).__init__()
+
+        assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
+        padding = 3 if kernel_size == 7 else 1
+
+        self.conv1 = nn.Conv2d(
+            2, 1, kernel_size, padding=padding, bias=False
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+
 class RecognitionBranch(ResNet):
-    def __init__(self, block=BasicBlock, layers=(2, 2, 2, 2)):
+    def __init__(self, out_features, block=BasicBlock, layers=(2, 2, 2, 2)):
         super(RecognitionBranch, self).__init__(
             block=block,
             layers=list(layers)
         )
+        self.fc = nn.Linear(self.fc.in_features, out_features)
 
-    def forward(self, x: Tensor, attention1: Tensor, attention3: Tensor):
+    def forward(self, x, attention1=1, attention3=1):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -171,6 +192,8 @@ class AuxiliaryBranch(ResNet):
             block=block,
             layers=list(layers)
         )
+        self.sam = SpatialAttention()
+        del self.fc, self.avgpool, self.layer4
 
     def forward(self, x: Tensor):
         x = self.conv1(x)
@@ -178,39 +201,40 @@ class AuxiliaryBranch(ResNet):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
 
-        return x
+        x1 = self.sam(x1)
+        x3 = self.sam(x3)
+
+        return x1, x3
 
 
 class RgbdFr(Module):
-    def __init__(self):
+    def __init__(self, out_features):
         super(RgbdFr, self).__init__()
-        self.rgb_net = RecognitionBranch()
-        self.depth_net = RecognitionBranch()
+        self.rgb_net = RecognitionBranch(out_features)
+        self.depth_net = RecognitionBranch(out_features)
         self.segment_net = AuxiliaryBranch()
-        self.attention = {}
+        # self.attention = {}
 
-        self.segment_net.layer1.register_forward_hook(
-            self._get_intermediate_feature_map(1)
-        )
-        self.segment_net.layer3.register_forward_hook(
-            self._get_intermediate_feature_map(3)
-        )
+        # self.segment_net.layer1.register_forward_hook(
+        #     self._get_intermediate_feature_map(1)
+        # )
 
-    def _get_intermediate_feature_map(self, layer):
-        def hook(module, x, y):
-            self.attention[layer] = y
-        return hook
+    # def _get_intermediate_feature_map(self, layer):
+    #     def hook(module, x, y):
+    #         self.attention[layer] = y
+    #     return hook
 
-    def spatial_attention(self):
-        # TODO SAM
-        # attention shape: (x, x, 1)
-        return self.attention[1], self.attention[3]
+    # def spatial_attention(self):
+    #     # attention shape: (x, x, 1)
+    #     attention_1 = self.sam(self.attention[1])
+    #     attention_3 = self.sam(self.attention[3])
+    #     return attention_1, attention_3
 
-    def forward(self, rgb, depth, segment):
+    def forward(self, rgb, depth, segment=None):
         """
         get rgb and depth branches' feature vectors
         Args:
@@ -222,10 +246,13 @@ class RgbdFr(Module):
             feat_rgb: rgb feature vector
             feat_depth: depth feature vector
         """
-        _ = self.segment_net(segment)
-        # attention[1]: (56, 56, 64), attention[3]: (14, 14, 256)
-        attention_1, attention_3 = self.spatial_attention()
-        # attention[1]: (56, 56, 1), attention[3]: (14, 14, 1)
+        if segment is not None:
+            # self.attention[3] = self.segment_net(segment)
+            # attention[1]: (56, 56, 64), attention[3]: (14, 14, 256)
+            attention_1, attention_3 = self.segment_net(segment)
+            # attention[1]: (56, 56, 1), attention[3]: (14, 14, 1)
+        else:
+            attention_1, attention_3 = (1, 1)
 
         feat_rgb = self.rgb_net(rgb, attention_1, attention_3)
         feat_depth = self.depth_net(depth, attention_1, attention_3)

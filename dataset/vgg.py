@@ -1,6 +1,7 @@
 from torchvision import transforms as trans
 from torch.utils.data import Dataset
 
+import numpy as np
 import torch
 import cv2
 
@@ -42,6 +43,10 @@ class Vgg(Dataset):
             normal = dzyx[:, :, 1:]
             normal = trans.ToTensor()(normal)
             out.append(normal)
+        if "segment" in self.using_modal:
+            # TODO segment input
+            segment = torch.clone(rgb)
+            out.append(segment)
 
         return *out, label
 

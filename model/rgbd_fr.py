@@ -47,18 +47,7 @@ class PtlRgbdFr(pl.LightningModule):
         self.using_test = config.using_test
 
         """initialize model"""
-        if "resnet" in self.backbone:
-            self.rgbd_fr = RgbdFr(
-                backbone=self.backbone,
-                out_features=self.out_features
-            )
-        else:
-            self.rgbd_fr = RgbdFr(
-                backbone=self.backbone,
-                rgb_in_channels=self.rgb_in_channels,
-                depth_in_channels=self.depth_in_channels,
-                reduction=self.se_reduction
-            )
+        self.rgbd_fr = RgbdFr(self.out_features)
         self.arcface = ArcFace(
             in_features=self.out_features,
             out_features=self.num_classes,
@@ -87,12 +76,12 @@ class PtlRgbdFr(pl.LightningModule):
         self.acc_lock3dface_oc = Accuracy()
         self.acc_lock3dface_tm = Accuracy()
 
-    def forward(self, rgb, depth):
-        return self.rgbd_fr(rgb, depth)
+    def forward(self, rgb, depth, segment=None):
+        return self.rgbd_fr(rgb, depth, segment)
 
     def training_step(self, batch, batch_idx):
-        rgb, depth, label = batch
-        feat_rgb, feat_depth = self(rgb, depth)
+        rgb, depth, segment, label = batch
+        feat_rgb, feat_depth = self(rgb, depth, segment)
         logits_rgb = self.arcface(feat_rgb, label)
         logits_depth = self.arcface(feat_depth, label)
 

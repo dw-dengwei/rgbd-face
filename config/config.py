@@ -37,7 +37,7 @@ class BaseConfig:
     train_rgb_dir = "aligned"
     train_dzyx_dir = "depth_normal"
     train_ids = 468
-    train_using_modal = ("rgb", "normal")
+    train_using_modal = ("rgb", "normal", "segment")
     using_test = 'lock3dface'
     single_modal = 'depth'
 
