@@ -1,11 +1,10 @@
 import math
-
 import torch
-from torch import nn, cosine_similarity
+from torch import nn, cosine_similarity, Tensor
 from torch.nn import Module
 from torch.nn.functional import linear, normalize
 from torchvision.models import resnet18, resnet34, resnet50
-
+from torchvision.models.resnet import BasicBlock, ResNet
 from model.senet import SENet
 
 
@@ -141,41 +140,93 @@ def backbone_factory(backbone="resnet18", *args, **kwargs):
     return net
 
 
-class RgbdFr(Module):
-    def __init__(self, backbone, *args, **kwargs):
-        super(RgbdFr, self).__init__()
-        if "resnet" in backbone:
-            self.rgb_net = backbone_factory(
-                backbone,
-                out_features=kwargs["out_features"]
-            )
-            self.depth_net = backbone_factory(
-                backbone,
-                out_features=kwargs["out_features"]
-            )
-        else:
-            self.rgb_net = backbone_factory(
-                backbone,
-                in_channels=kwargs["rgb_in_channels"],
-                reduction=kwargs["reduction"]
-            )
-            self.depth_net = backbone_factory(
-                backbone,
-                in_channels=kwargs["depth_in_channels"],
-                reduction=kwargs["reduction"]
-            )
+class RecognitionBranch(ResNet):
+    def __init__(self, block=BasicBlock, layers=(2, 2, 2, 2)):
+        super(RecognitionBranch, self).__init__(
+            block=block,
+            layers=list(layers)
+        )
 
-    def forward(self, rgb, depth):
+    def forward(self, x: Tensor, attention1: Tensor, attention3: Tensor):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x * attention1)
+        x = self.layer3(x)
+        x = self.layer4(x * attention3)
+
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+
+        return x
+
+
+class AuxiliaryBranch(ResNet):
+    def __init__(self, block=BasicBlock, layers=(2, 2, 2, 2)):
+        super(AuxiliaryBranch, self).__init__(
+            block=block,
+            layers=list(layers)
+        )
+
+    def forward(self, x: Tensor):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+
+        return x
+
+
+class RgbdFr(Module):
+    def __init__(self):
+        super(RgbdFr, self).__init__()
+        self.rgb_net = RecognitionBranch()
+        self.depth_net = RecognitionBranch()
+        self.segment_net = AuxiliaryBranch()
+        self.attention = {}
+
+        self.segment_net.layer1.register_forward_hook(
+            self._get_intermediate_feature_map(1)
+        )
+        self.segment_net.layer3.register_forward_hook(
+            self._get_intermediate_feature_map(3)
+        )
+
+    def _get_intermediate_feature_map(self, layer):
+        def hook(module, x, y):
+            self.attention[layer] = y
+        return hook
+
+    def spatial_attention(self):
+        # TODO SAM
+        # attention shape: (x, x, 1)
+        return self.attention[1], self.attention[3]
+
+    def forward(self, rgb, depth, segment):
         """
         get rgb and depth branches' feature vectors
         Args:
             rgb: rgb image
             depth: depth image
+            segment: segment image
 
         Returns:
             feat_rgb: rgb feature vector
             feat_depth: depth feature vector
         """
-        feat_rgb = self.rgb_net(rgb)
-        feat_depth = self.depth_net(depth)
+        _ = self.segment_net(segment)
+        # attention[1]: (56, 56, 64), attention[3]: (14, 14, 256)
+        attention_1, attention_3 = self.spatial_attention()
+        # attention[1]: (56, 56, 1), attention[3]: (14, 14, 1)
+
+        feat_rgb = self.rgb_net(rgb, attention_1, attention_3)
+        feat_depth = self.depth_net(depth, attention_1, attention_3)
         return feat_rgb, feat_depth
