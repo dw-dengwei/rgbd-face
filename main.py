@@ -45,7 +45,6 @@ if __name__ == '__main__':
         entity=PrivateConfig.entity,
         config=conf_dict
     )
-    logger.watch(model.rgbd_fr, log="all", log_freq=1)
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
 
