@@ -17,7 +17,7 @@ class BaseConfig:
     warmup_ratio = 0.05
 
     """model"""
-    num_classes = 5000
+    num_classes = 6000
     backbone = "resnet18"
     rgb_weight = 0.5
     arcface_margin = 0.3
@@ -36,7 +36,7 @@ class BaseConfig:
     train_data_root = "/home/dw/vgg"
     train_rgb_dir = "aligned"
     train_dzyx_dir = "depth_normal"
-    train_ids = 4000
+    train_ids = 5000
     train_using_modal = ("rgb", "normal")
     using_test = 'lock3dface'
     single_modal = 'depth'
