@@ -92,6 +92,10 @@ class Vgg(Dataset):
             normal = dzyx[:, :, 1:]
             normal = trans.ToTensor()(normal)
             out.append(normal)
+        if "segment" in self.using_modal:
+            # TODO segment input
+            segment = torch.clone(rgb)
+            out.append(segment)
 
         return *out, label
 
