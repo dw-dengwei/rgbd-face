@@ -230,3 +230,5 @@ nohup.out
 
 # private
 config/private.py
+
+notebook/*
