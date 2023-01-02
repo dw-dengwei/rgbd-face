@@ -1,5 +1,6 @@
 import math
 import torch
+from config.config import BaseConfig as config
 from torch import nn, cosine_similarity, Tensor
 from torch.nn import Module
 from torch.nn.functional import linear, normalize
@@ -187,12 +188,20 @@ class RecognitionBranch(ResNet):
 
 
 class AuxiliaryBranch(ResNet):
-    def __init__(self, block=BasicBlock, layers=(2, 2, 2, 2)):
+    def __init__(self, block=BasicBlock, layers=(2, 2, 2, 2), in_channel=11):
         super(AuxiliaryBranch, self).__init__(
             block=block,
             layers=list(layers)
         )
         self.sam = SpatialAttention()
+        self.conv1 = nn.Conv2d(
+            in_channel,
+            64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False
+        )
         del self.fc, self.avgpool, self.layer4
 
     def forward(self, x: Tensor):
@@ -216,7 +225,8 @@ class RgbdFr(Module):
         super(RgbdFr, self).__init__()
         self.rgb_net = RecognitionBranch(out_features)
         self.depth_net = RecognitionBranch(out_features)
-        self.segment_net = AuxiliaryBranch()
+        if 'segment' in config.train_using_modal:
+            self.segment_net = AuxiliaryBranch()
         # self.attention = {}
 
         # self.segment_net.layer1.register_forward_hook(

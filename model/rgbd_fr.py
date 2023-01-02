@@ -80,7 +80,12 @@ class PtlRgbdFr(pl.LightningModule):
         return self.rgbd_fr(rgb, depth, segment)
 
     def training_step(self, batch, batch_idx):
-        rgb, depth, segment, label = batch
+        if 'segment' in config.train_using_modal:
+            rgb, depth, segment, label = batch
+        else:
+            rgb, depth, label = batch
+            segment = None
+
         feat_rgb, feat_depth = self(rgb, depth, segment)
         logits_rgb = self.arcface(feat_rgb, label)
         logits_depth = self.arcface(feat_depth, label)

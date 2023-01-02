@@ -8,6 +8,7 @@ from os.path import join
 from glob import glob
 
 import pandas as pd
+import numpy as np
 
 
 class Loader(LightningDataModule):
@@ -48,10 +49,12 @@ class Loader(LightningDataModule):
 
 def get_dataset():
     train_dataset = Vgg(
-        *get_vgg_rgb_dzyx_path(
+        *get_vgg_rgb_dzyx_seg_path(
             config.train_data_root,
             config.train_rgb_dir,
             config.train_dzyx_dir,
+            config.train_segment_dir,
+            config.train_segment_lmdb,
             config.train_ids
         ),
         None,
@@ -97,7 +100,14 @@ def get_dataset():
            valid_probe_dataset
 
 
-def get_vgg_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
+def get_vgg_rgb_dzyx_seg_path(
+    data_root,
+    rgb_dir,
+    dzyx_dir,
+    seg_dir,
+    seg_lmdb,
+    num_id
+):
     ids = [i for i in range(1, 1 + num_id)]
     dzyx_pattern = "*_dzyx.png"
     dzyx_list = []
@@ -112,8 +122,19 @@ def get_vgg_rgb_dzyx_path(data_root, rgb_dir, dzyx_dir, num_id):
             dzyx_list
         )
     )
+    seg_list = list(
+        map(
+            lambda p: p.replace(dzyx_dir, seg_dir).replace("_dzyx.png", ".npy"),
+            dzyx_list
+        )
+    )
 
-    return rgb_list, dzyx_list
+    # return rgb_list, dzyx_list, seg_list
+    rgb_list = np.array(rgb_list)
+    dzyx_list = np.array(dzyx_list)
+    seg_list = np.array(seg_list)
+    seg_lmdb_path = join(data_root, seg_lmdb)
+    return rgb_list, dzyx_list, seg_list, seg_lmdb_path
 
 
 def get_texas_rgb_dzyx_path(test_set):
