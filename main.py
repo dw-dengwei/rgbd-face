@@ -1,4 +1,6 @@
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.callbacks import DeviceStatsMonitor
+from pytorch_lightning.profilers import AdvancedProfiler
 from pytorch_lightning.loggers import WandbLogger
 from config.config import BaseConfig as config
 from util.train import get_total_train_steps
@@ -47,6 +49,7 @@ if __name__ == '__main__':
     )
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
+    profiler = AdvancedProfiler(dirpath="log/profile", filename="profile_logs")
 
     trainer = pl.Trainer(
         max_epochs=config.epoch,
@@ -57,6 +60,7 @@ if __name__ == '__main__':
         precision=config.precision,
         strategy="ddp_find_unused_parameters_false",
         callbacks=[lr_monitor],
-        val_check_interval=config.valid_check_interval
+        val_check_interval=config.valid_check_interval,
+        profiler=profiler
     )
     trainer.fit(model=model, datamodule=dataloader)
