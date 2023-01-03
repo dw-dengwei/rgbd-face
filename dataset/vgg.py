@@ -27,6 +27,7 @@ class Vgg(Dataset):
         self.using_modal = using_modal
         self.random_patch_prob = config.random_patch_prob
         self.random_patch_size = config.random_patch_size
+        self.random_patch_method = config.random_patch_method
         self.atts = ['background', 'skin', 'l_brow', 'r_brow', 'l_eye', 'r_eye',
                      'eye_g', 'l_ear', 'r_ear',
                      'ear_r', 'nose', 'mouth', 'u_lip', 'l_lip', 'neck',
@@ -72,23 +73,31 @@ class Vgg(Dataset):
         # cv2.imwrite("normal.png", normal[:, :, ::-1])
         return normal[:, :, ::-1]
 
-    @staticmethod
-    def random_patch(rgb, dzyx, prob=0.2, patch_size=30):
+    def random_patch(self, rgb, dzyx):
         h, w, _ = rgb.shape
-        if prob > 0 and np.random.rand() < prob:
+        if self.random_patch_prob > 0 and np.random.rand() < \
+                self.random_patch_prob:
             depth = dzyx[:, :, 0]
             normal = dzyx[:, :, 1:]
-            center_r = np.random.randint(patch_size, h - patch_size)
-            center_c = np.random.randint(patch_size, w - patch_size)
+            center_r = np.random.randint(self.random_patch_size,
+                                         h - self.random_patch_size)
+            center_c = np.random.randint(self.random_patch_size,
+                                         w - self.random_patch_size)
 
-            left = max(0, center_c - patch_size // 2)
-            right = min(w, center_c + patch_size // 2)
-            bottom = max(0, center_r - patch_size // 2)
-            top = min(h, center_r + patch_size // 2)
+            left = max(0, center_c - self.random_patch_size// 2)
+            right = min(w, center_c + self.random_patch_size // 2)
+            bottom = max(0, center_r - self.random_patch_size // 2)
+            top = min(h, center_r + self.random_patch_size // 2)
 
-            rgb[bottom:top, left:right, :] = 0
-            depth[bottom:top, left:right] = depth[bottom:top, left:right].max()
-            normal = Vgg.get_normal(depth)
+            if self.random_patch_method == 'legacy':
+                rgb[bottom:top, left:right, :] = 0
+                depth[bottom:top, left:right] = 0
+                normal[bottom:top, left:right] = 0
+                normal = Vgg.get_normal(depth)
+            else:
+                rgb[bottom:top, left:right, :] = 0
+                depth[bottom:top, left:right] = depth[bottom:top, left:right].max()
+                normal = Vgg.get_normal(depth)
             dzyx = np.concatenate([depth.reshape(h, w, 1), normal], axis=2)
 
         return rgb, dzyx
@@ -104,10 +113,7 @@ class Vgg(Dataset):
         out = []
         rgb = cv2.imread(self.rgb_path[index])
         dzyx = cv2.imread(self.dzyx_path[index], -1)
-        rgb, dzyx = Vgg.random_patch(
-            rgb, dzyx, prob=self.random_patch_prob,
-            patch_size=self.random_patch_size
-        )
+        rgb, dzyx = Vgg.random_patch(rgb, dzyx)
         if "rgb" in self.using_modal:
             # rgb = torch.from_numpy((rgb.transpose(2, 0, 1)))
             rgb = trans.ToTensor()(rgb)
