@@ -11,6 +11,7 @@ train_dataset = Vgg(
         config.train_rgb_dir,
         config.train_dzyx_dir,
         config.train_segment_dir,
+        config.train_segment_lmdb,
         config.train_ids
     ),
     None,
@@ -20,7 +21,7 @@ train_dataset = Vgg(
 loader = DataLoader(
     train_dataset,
     batch_size=512,
-    num_workers=16,
+    num_workers=80,
     pin_memory=True,
     persistent_workers=True,
     shuffle=True
