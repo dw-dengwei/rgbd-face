@@ -113,7 +113,7 @@ class Vgg(Dataset):
         out = []
         rgb = cv2.imread(self.rgb_path[index])
         dzyx = cv2.imread(self.dzyx_path[index], -1)
-        rgb, dzyx = Vgg.random_patch(rgb, dzyx)
+        rgb, dzyx = self.random_patch(rgb, dzyx)
         if "rgb" in self.using_modal:
             # rgb = torch.from_numpy((rgb.transpose(2, 0, 1)))
             rgb = trans.ToTensor()(rgb)
@@ -121,6 +121,7 @@ class Vgg(Dataset):
             out.append(rgb)
         if "depth" in self.using_modal:
             depth = dzyx[:, :, :1]
+            depth = depth.repeat(3, axis=2)
             # depth = torch.from_numpy(depth.transpose(2, 0, 1))
             depth = trans.ToTensor()(depth)
             out.append(depth)
@@ -137,7 +138,7 @@ class Vgg(Dataset):
             segment = np.frombuffer(buf, dtype=np.float32).reshape(
                 (11, 128, 128)
             )
-            segment = torch.from_numpy(segment)
+            segment = torch.tensor(segment)
             out.append(segment)
             # segment = np.load(self.seg_path[index])[self.seg_channel, :, :].transpose(1,2,0)
             # segment = trans.ToTensor()(segment)

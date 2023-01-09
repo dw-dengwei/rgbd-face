@@ -25,6 +25,7 @@ class Lock3DFace(Dataset):
         dzyx = cv2.imread(dzyx_fp, -1)
         if "depth" in self.using_modal:
             depth = dzyx[:, :, :1]
+            depth = depth.repeat(3, axis=2)
             depth = trans.ToTensor()(depth)
             out.append(depth)
         if "normal" in self.using_modal:
